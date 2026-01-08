@@ -122,6 +122,13 @@ const theme = createTheme({
         },
       },
     },
+    MuiContainer: {
+      styleOverrides: {
+        root: {
+          padding: '50px 0px',
+        },
+      },
+    },
   },
 });
 

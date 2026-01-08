@@ -6,12 +6,22 @@ from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from model import DynamicModel
 from torchvision import datasets,transforms
+
+from pydantic import BaseModel
+from typing import List, Optional
 import json
 import asyncio
 
 
 app = FastAPI()
-app.add_middleware(CORSMiddleware,allow_origins=['*'])
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 state = {
     'model': None,
@@ -21,56 +31,134 @@ state = {
     'gradients':{},
     'epochs':10,
     'batch_size':32,
+    'send_every':32,
+    'ws_sleep':0.01,
 }
 
+
 def register_hooks(model):
-    def forward_hooks(name):
-        def hook(module,input,output):
-            state['activations'][name] = output.detach().abs().mean().item()
+    def forward_hooks(name, is_input=False):
+        def hook(module, input, output):
+            if is_input:
+                val = input[0].detach() 
+                first_sample = val[0]   
+                normalized = (first_sample.abs() / (first_sample.abs().max() + 1e-6)).tolist()
+                if len(normalized) < 784:
+                    normalized = normalized + [0.0] * (784 - len(normalized))
+                elif len(normalized) > 784:
+                    normalized = normalized[:784]
+            else:
+                val = output.detach()   
+                first_sample = val[0]
+                normalized = (first_sample.abs() / (first_sample.abs().max() + 1e-6)).tolist()
+            state['activations'][name] = normalized
         return hook
-    def backward_hooks(name):
-        def hook(module,grad_input,grad_output):
-            state['gradients'][name] = grad_output[0].detach().abs().mean().item()
+
+    def backward_hooks(name, is_input=False):
+        def hook(module, grad_input, grad_output):
+            val = grad_output[0].detach() 
+            if is_input:
+                first_sample_grad = val[0]
+                normalized_grad = (first_sample_grad.abs() / (first_sample_grad.abs().max() + 1e-6)).tolist()
+                if len(normalized_grad) < 784:
+                    normalized_grad = normalized_grad + [0.0] * (784 - len(normalized_grad))
+                elif len(normalized_grad) > 784:
+                    normalized_grad = normalized_grad[:784]
+            else:
+                first_sample_grad = val[0]
+                normalized_grad = (first_sample_grad.abs() / (first_sample_grad.abs().max() + 1e-6)).tolist()
+            state['gradients'][name] = normalized_grad
         return hook
+
     for idx, layer in enumerate(model.layers):
         layer_name = f"layer_{idx}"
-        layer.register_forward_hook(forward_hooks(layer_name))
-        layer.register_full_backward_hook(backward_hooks(layer_name))
-        
-        
+        is_input = idx == 0
+        layer.register_forward_hook(forward_hooks(layer_name, is_input))
+        layer.register_full_backward_hook(backward_hooks(layer_name, is_input))
+
+class LayerConfig(BaseModel):
+    type: str
+    in_features: Optional[int] = None
+    out_features: Optional[int] = None
+
+class SetupConfig(BaseModel):
+    layers: List[dict]
+    optimizer: str
+    lr: float
+    epochs: int
+    batch_size: int
+    send_every:int
+    ws_sleep:float
+
 @app.post('/setup')
-async def setup_model(config:dict):
-    state['model'] = DynamicModel(config['layers'])
-    state['optimizer'] = config['optimizer'](state['model'].parameters(),lr=config['lr'])
+async def setup_model(config: SetupConfig):
+    
+    state['activations'].clear()
+    state['gradients'].clear()
+    state.pop('loss_ema', None)
+
+    opt_map={
+        "Adam": torch.optim.Adam,
+        "SGD": torch.optim.SGD,
+        "RMSprop": torch.optim.RMSprop
+    }
+    layers_data = config.layers
+    state['model'] = DynamicModel(layers_data)
+    
+    optim_class = opt_map.get(config.optimizer, torch.optim.Adam)
+    state['optimizer'] = optim_class(state['model'].parameters(), lr=config.lr)
+    
+    state['epochs'] = config.epochs
+    state['batch_size'] = config.batch_size
+    state['send_every'] = config.send_every
+    state['ws_sleep'] = config.ws_sleep
+    
     register_hooks(state['model'])
-    logger.info('Model and optimzier set up')
-    return {'status':'model setup complete'}
+    
+    print(f"Model initialized with {config.optimizer} and LR {config.lr}")
+    return {'status': 'model setup complete'}
 
 @app.websocket('/ws/train')
 async def train_stream(websocket:WebSocket):
     await websocket.accept()
     
-    train_transform = transforms.compose([transforms.toTensor(),transforms.Lambda(lambda x: x.flatten()/255.0)])
+    train_transform = transforms.Compose([transforms.ToTensor(),transforms.Lambda(lambda x: x.flatten())])
     train_set = datasets.MNIST('./data',train=True,download=True,transform=train_transform)
     
     train_loader = torch.utils.data.DataLoader(train_set,batch_size=state['batch_size'],shuffle=True)
     for epoch in range(state['epochs']):
-        for batch_idx,(data,target) in enumerate(train_loader):
+        for batch_idx, (data, target) in enumerate(train_loader):
             state['optimizer'].zero_grad()
             output = state['model'](data)
-            loss = state['criterion'](output,target)
+            loss = state['criterion'](output, target)
             loss.backward()
             state['optimizer'].step()
-            
-            layer_keys = sorted(state['activations'].keys())
-            payload = {
-                "batch":batch_idx,
-                'loss':round(loss.item(),4),
-                'forward_wave':[state['activations'].get(k,0) for k in layer_keys],
-                'backward_wave':[state['gradients'].get(k,0) for k in reversed(layer_keys)]
-            }
-            await websocket.send_text(json.dumps(payload))
-            await asyncio.sleep(0.01)
+
+            if 'loss_ema' not in state:
+                state['loss_ema'] = loss.item()
+            else:
+                state['loss_ema'] = 0.9 * state['loss_ema'] + 0.1 * loss.item()
+
+            predicted = output.argmax(dim=1)[0].item()
+            trueLabel = target[0].item()
+            accuracy = (output.argmax(dim=1) == target).float().mean().item()
+
+            send = (batch_idx % state['send_every'] == 0) or (batch_idx == len(train_loader) - 1)
+            if send:
+                layer_keys = sorted(state['activations'].keys())
+                payload = {
+                    "epoch": epoch,
+                    "batch": batch_idx,
+                    "loss": round(state['loss_ema'], 4),
+                    "forward_wave": [state['activations'].get(k, [0.0]) for k in layer_keys],
+                    "backward_wave": [state['gradients'].get(k, [0.0]) for k in layer_keys],
+                    "predicted": predicted,
+                    "trueLabel": trueLabel,
+                    "accuracy": accuracy,
+                }
+                await websocket.send_text(json.dumps(payload))
+                await asyncio.sleep(state['ws_sleep'])
+    await websocket.close()
 
 @app.post("/draw")
 async def draw_model(payload:dict):
