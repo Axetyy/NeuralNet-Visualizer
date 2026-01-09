@@ -21,7 +21,7 @@ const HomePage = () => {
               <Typography variant="h5"> Train your own</Typography>
             </Button>
           </Link>
-          <Link href="/predict" style={{ textDecoration: 'none' }}>
+          <Link href="/draw" style={{ textDecoration: 'none' }}>
             <Button variant="contained" sx={{ height: '80px' }}>
               <Typography variant="h5"> Draw and Visualize</Typography>
             </Button>

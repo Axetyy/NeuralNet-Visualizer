@@ -17,3 +17,27 @@ class DynamicModel(nn.Module):
         for layer in self.layers:
             x = layer(x)
         return x
+    
+    
+    
+class PretrainedModel(nn.Module):
+    def __init__(self,num_classes):
+        super().__init__()
+        self.layers = nn.Sequential(
+            nn.Linear(784,1024),
+            nn.ReLU(),
+            nn.BatchNorm1d(1024),
+            nn.Linear(1024,512),
+            nn.ReLU(),
+            nn.BatchNorm1d(512),
+            nn.Linear(512,256),
+            nn.ReLU(),
+            nn.BatchNorm1d(256),
+            nn.Linear(256,128),
+            nn.ReLU(),
+            nn.BatchNorm1d(128),
+            nn.Linear(128,num_classes),
+        )
+
+    def forward(self,X):
+        return self.layers(X)

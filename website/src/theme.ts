@@ -1,34 +1,56 @@
 'use client';
+import { Palette } from '@mui/icons-material';
 import { createTheme } from '@mui/material/styles';
-
+declare module '@mui/material/styles' {
+  interface Palette {
+    gradients: {
+      primary: string;
+      secondary: string;
+    };
+  }
+  interface PaletteOptions {
+    gradients?: {
+      primary?: string;
+      secondary?: string;
+    };
+  }
+}
 export const pageSpacing = 4;
-
+const colorPalette = {
+  primary: {
+    main: '#1f2933',
+  },
+  secondary: {
+    main: '#4b5563',
+  },
+  background: {
+    default: '#f9fafb',
+    paper: '#ffffff',
+  },
+  text: {
+    primary: '#111827',
+    secondary: '#6b7280',
+  },
+  divider: '#e5e7eb',
+  grey: {
+    100: '#f3f4f6',
+    200: '#e5e7eb',
+    300: '#d1d5db',
+    700: '#374151',
+  },
+  gradients: {
+    primary: 'linear-gradient(90deg, #3b82f6, #8b5cf6)',
+    secondary: 'linear-gradient(90deg, #8b5cf6, #ec4899)',
+  },
+};
 const theme = createTheme({
   palette: {
-    mode: 'light',
-    primary: {
-      main: '#1f2933', // deep neutral blue-gray
-    },
-    secondary: {
-      main: '#4b5563', // muted gray
-    },
-    background: {
-      default: '#f9fafb',
-      paper: '#ffffff',
-    },
-    text: {
-      primary: '#111827',
-      secondary: '#6b7280',
-    },
-    divider: '#e5e7eb',
-    grey: {
-      100: '#f3f4f6',
-      200: '#e5e7eb',
-      300: '#d1d5db',
-      700: '#374151',
+    ...colorPalette,
+    gradients: {
+      primary: 'linear-gradient(90deg, #3b82f6, #8b5cf6)',
+      secondary: 'linear-gradient(90deg, #8b5cf6, #ec4899)',
     },
   },
-
   typography: {
     fontSize: 14,
     h3: {
@@ -59,6 +81,37 @@ const theme = createTheme({
   },
 
   components: {
+    MuiTypography: {
+      defaultProps: {
+        color: 'white',
+      },
+    },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          '& label': {
+            color: '#fff',
+          },
+          '& label.Mui-focused': {
+            color: '#fff',
+          },
+          '& .MuiInputBase-input': {
+            color: '#fff',
+          },
+          '& .MuiOutlinedInput-root': {
+            '& fieldset': {
+              borderColor: 'rgba(255,255,255,0.3)',
+            },
+            '&:hover fieldset': {
+              borderColor: '#fff',
+            },
+            '&.Mui-focused fieldset': {
+              borderColor: '#fff',
+            },
+          },
+        },
+      },
+    },
     MuiButton: {
       defaultProps: {
         disableRipple: true,
@@ -70,6 +123,7 @@ const theme = createTheme({
           padding: '6px 14px',
         },
         contained: {
+          // fallback for all contained buttons
           backgroundColor: '#1f2933',
           '&:hover': {
             backgroundColor: '#111827',
@@ -80,10 +134,22 @@ const theme = createTheme({
           color: '#111827',
           '&:hover': {
             borderColor: '#9ca3af',
-            backgroundColor: '#f3f4f6',
+            backgroundColor: 'secondary.main',
           },
         },
       },
+      variants: [
+        {
+          props: { variant: 'contained', color: 'primary' },
+          style: {
+            background: colorPalette.gradients.primary,
+            color: '#fff',
+            '&:hover': {
+              background: 'linear-gradient(90deg, #2563eb, #7c3aed)',
+            },
+          },
+        },
+      ],
     },
 
     MuiPaper: {
@@ -124,9 +190,7 @@ const theme = createTheme({
     },
     MuiContainer: {
       styleOverrides: {
-        root: {
-          padding: '50px 0px',
-        },
+        root: {},
       },
     },
   },

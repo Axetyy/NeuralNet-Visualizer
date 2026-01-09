@@ -10,27 +10,34 @@ import {
   MenuItem,
   IconButton,
   Paper,
-  Divider,
   Card,
+  Grid,
+  FormControlLabel,
   Checkbox,
+  Snackbar,
+  Alert,
+  Tooltip,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import SettingsIcon from '@mui/icons-material/Settings';
+import TuneIcon from '@mui/icons-material/Tune';
+import LayersIcon from '@mui/icons-material/Layers';
 import TrainVisualizer from '<@>/components/TrainVisualizer/TrainVisualizer';
-import { ModelConfig } from '<@>/types';
 import { ModelLayer } from '<@>/types';
 
 const OPTIMIZERS = ['Adam', 'SGD', 'RMSprop'];
 const LAYER_TYPES = ['linear', 'relu', 'sigmoid'];
 
 const TrainPage: React.FC = () => {
-  const [config, setConfig] = useState({
-    lr: 0.001,
-    epochs: 5,
-    batch_size: 32,
-    optimizer: 'Adam',
+  const [notification, setNotification] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'error' | 'success';
+  }>({
+    open: false,
+    message: '',
+    severity: 'success',
   });
 
   const [layers, setLayers] = useState<ModelLayer[]>([
@@ -38,205 +45,370 @@ const TrainPage: React.FC = () => {
     { type: 'relu' },
     { type: 'linear', in: 128, out: 10 },
   ]);
+  const [config, setConfig] = useState({
+    lr: 0.001,
+    epochs: 5,
+    batch_size: 32,
+    optimizer: 'Adam',
+  });
 
-  const addLayer = () => {
-    setLayers([...layers, { type: 'linear', in: 128, out: 64 }]);
-  };
-  const [hideReLULayers, setHideReLULayers] = useState<boolean>(false);
-  const [showGrad, setShowGrad] = useState<boolean>(true);
-  const removeLayer = (index: number) => {
-    setLayers(layers.filter((_, i) => i !== index));
-  };
-  const [isTraining, setIsTraining] = useState<boolean>(false);
-  const [sendEvery, setSendEvery] = useState<number>(32);
-  const [wsSleep, setWsSleep] = useState<number>(0.01);
+  const [hideReLULayers, setHideReLULayers] = useState(false);
+  const [showGrad, setShowGrad] = useState(true);
+  const [isTraining, setIsTraining] = useState(false);
+  const [sendEvery, setSendEvery] = useState<number | string>(32);
+  const [wsSleep, setWsSleep] = useState<number | string>(0.01);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const updateLayer = (index: number, field: string, value: any) => {
+  const handleCloseNotify = () => setNotification({ ...notification, open: false });
+
+  const updateLayer = (index: number, field: string, value: string) => {
     const newLayers = [...layers];
-    newLayers[index] = { ...newLayers[index], [field]: value };
+    const sanitizedValue = value === '' ? '' : field === 'type' ? value : Number(value);
+    newLayers[index] = { ...newLayers[index], [field]: sanitizedValue };
     setLayers(newLayers);
   };
 
-  const handleStartTraining = async () => {
-    const response = await fetch('http://localhost:8000/setup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        layers,
-        optimizer: config.optimizer,
-        lr: config.lr,
-        epochs: config.epochs,
-        batch_size: config.batch_size,
-        send_every: sendEvery,
-        ws_sleep: wsSleep,
-      }),
-    });
+  const validateModel = () => {
+    const firstLayer = layers[0];
+    const lastLayer = layers[layers.length - 1];
 
-    if (response.ok) {
-      setIsTraining(true);
+    if (firstLayer.type !== 'linear' || firstLayer.in !== 784) {
+      setNotification({
+        open: true,
+        message:
+          "Failsafe Triggered: The first layer must be a Linear layer with an 'In' size of 784 (MNIST input).",
+        severity: 'error',
+      });
+      return false;
+    }
+
+    if (lastLayer.type !== 'linear' || lastLayer.out !== 10) {
+      setNotification({
+        open: true,
+        message:
+          "Failsafe Triggered: The final layer must be a Linear layer with an 'Out' size of 10 (Digits 0-9).",
+        severity: 'error',
+      });
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleStartTraining = async () => {
+    if (!validateModel()) return;
+
+    try {
+      const response = await fetch('http://localhost:8000/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          layers: layers,
+          ...config,
+          send_every: Number(sendEvery) || 32,
+          ws_sleep: Number(wsSleep) || 0,
+        }),
+      });
+
+      if (response.ok) {
+        setNotification({
+          open: true,
+          message: 'Training Engine Initialized!',
+          severity: 'success',
+        });
+        setIsTraining(true);
+      }
+    } catch (e) {
+      setNotification({
+        open: true,
+        message: 'Connection Error: Is the backend running?',
+        severity: 'error',
+      });
     }
   };
-  const modelConfig: ModelConfig = {
-    layers,
-    optimizer: config.optimizer,
-    lr: config.lr,
-    epochs: config.epochs,
-  };
-  const handleChangeReLUVisibility = () => {
-    setHideReLULayers((prev) => !prev);
-  };
-  const handleChangeGradVisibility = () => {
-    setShowGrad((prev) => !prev);
-  };
+
   return (
-    <Box alignItems={'center'} justifyContent={'center'}>
-      <Container maxWidth="md" sx={{ py: 8 }}>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        background: 'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)',
+        color: '#fff',
+      }}
+    >
+      <Container sx={{ pt: 6 }}>
         <Stack spacing={4}>
-          <Typography variant="h4" fontWeight="bold">
-            Model Configuration
-          </Typography>
-
-          <Paper sx={{ p: 3, backgroundColor: 'background.paper' }}>
-            <Stack direction="row" spacing={3} alignItems="center">
-              <SettingsIcon color="primary" />
-              <TextField
-                label="Learning Rate"
-                type="number"
-                value={config.lr}
-                onChange={(e) => setConfig({ ...config, lr: parseFloat(e.target.value) })}
-                size="small"
-              />
-              <TextField
-                label="Epochs"
-                type="number"
-                value={config.epochs}
-                onChange={(e) => setConfig({ ...config, epochs: parseInt(e.target.value) })}
-                size="small"
-              />
-              <TextField
-                select
-                label="Optimizer"
-                value={config.optimizer}
-                onChange={(e) => setConfig({ ...config, optimizer: e.target.value })}
-                size="small"
-                sx={{ minWidth: '120px' }}
-              >
-                {OPTIMIZERS.map((opt) => (
-                  <MenuItem key={opt} value={opt}>
-                    {opt}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Stack>
-          </Paper>
-
-          <Divider />
-
-          <Typography variant="h5">Architecture</Typography>
-          <Stack spacing={2}>
-            {layers.map((layer, index) => (
-              <Card key={index} sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Typography variant="subtitle2" sx={{ minWidth: '80px' }}>
-                  Layer {index}
-                </Typography>
-
-                <TextField
-                  select
-                  size="small"
-                  value={layer.type}
-                  onChange={(e) => updateLayer(index, 'type', e.target.value)}
-                >
-                  {LAYER_TYPES.map((t) => (
-                    <MenuItem key={t} value={t}>
-                      {t.toUpperCase()}
-                    </MenuItem>
-                  ))}
-                </TextField>
-
-                {layer.type === 'linear' && (
-                  <>
-                    <TextField
-                      label="In"
-                      type="number"
-                      size="small"
-                      value={layer.in}
-                      onChange={(e) => updateLayer(index, 'in', parseInt(e.target.value))}
-                      sx={{ width: '100px' }}
-                    />
-                    <TextField
-                      label="Out"
-                      type="number"
-                      size="small"
-                      value={layer.out}
-                      onChange={(e) => updateLayer(index, 'out', parseInt(e.target.value))}
-                      sx={{ width: '100px' }}
-                    />
-                  </>
-                )}
-
-                <IconButton onClick={() => removeLayer(index)} color="error" sx={{ ml: 'auto' }}>
-                  <DeleteIcon />
-                </IconButton>
-              </Card>
-            ))}
-            <Button
-              variant="outlined"
-              startIcon={<AddIcon />}
-              onClick={addLayer}
-              sx={{ borderStyle: 'dashed' }}
+          <Box>
+            <Typography
+              variant="h3"
+              fontWeight="800"
+              sx={{
+                background: 'linear-gradient(90deg, #60a5fa, #c084fc)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
             >
-              Add Layer
-            </Button>
-            <Stack direction={'row'} alignItems={'center'} spacing={2}>
-              <Typography>Hide ReLU Layers?</Typography>
-              <Checkbox
-                checked={hideReLULayers}
-                onChange={handleChangeReLUVisibility}
-                slotProps={{ input: { 'aria-label': 'hide-relu-layers' } }}
-              />
+              Architecture Studio
+            </Typography>
+            <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.6)' }}>
+              Design your network. Ensure the input (784) and output (10) match the MNIST dataset
+              requirements.
+            </Typography>
+          </Box>
 
-              <Typography>Show Grad effects?</Typography>
-              <Checkbox
-                checked={showGrad}
-                onChange={handleChangeGradVisibility}
-                slotProps={{ input: { 'aria-label': 'show-grad' } }}
-              />
+          <Grid container spacing={3}>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Paper
+                sx={{
+                  p: 3,
+                  borderRadius: 4,
+                  bgcolor: 'rgba(30, 41, 59, 0.7)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                }}
+              >
+                <Stack spacing={3}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <TuneIcon color="primary" />
+                    <Typography variant="h6" fontWeight="bold">
+                      Global Config
+                    </Typography>
+                  </Stack>
+                  <TextField
+                    label="Learning Rate"
+                    type="number"
+                    value={config.lr}
+                    onChange={(e) =>
+                      setConfig({
+                        ...config,
+                        lr: e.target.value === '' ? 0 : Number(e.target.value),
+                      })
+                    }
+                    fullWidth
+                  />
+                  <TextField
+                    label="Epochs"
+                    type="number"
+                    value={config.epochs}
+                    onChange={(e) =>
+                      setConfig({
+                        ...config,
+                        epochs: e.target.value === '' ? 0 : Number(e.target.value),
+                      })
+                    }
+                    fullWidth
+                  />
+                  <TextField
+                    select
+                    label="Optimizer"
+                    value={config.optimizer}
+                    onChange={(e) => setConfig({ ...config, optimizer: e.target.value })}
+                    fullWidth
+                  >
+                    {OPTIMIZERS.map((opt) => (
+                      <MenuItem key={opt} value={opt}>
+                        {opt}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Stack>
+              </Paper>
+            </Grid>
 
-              <Typography>SEND_EVERY: {sendEvery}</Typography>
-              <TextField
-                type="number"
-                size="small"
-                value={sendEvery}
-                onChange={(e) => setSendEvery(Math.max(1, parseInt(e.target.value) || 1))}
-                sx={{ width: '60px' }}
-              />
+            {/* Architecture Card */}
+            <Grid size={{ xs: 12, sm: 8 }}>
+              <Paper
+                sx={{
+                  p: 3,
+                  borderRadius: 4,
+                  bgcolor: 'rgba(30, 41, 59, 0.7)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                }}
+              >
+                <Stack direction="row" justifyContent="space-between" mb={3}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <LayersIcon color="secondary" />
+                    <Typography variant="h6" fontWeight="bold">
+                      Layer Stack
+                    </Typography>
+                  </Stack>
+                  <Button
+                    variant="outlined"
+                    startIcon={<AddIcon sx={{ color: 'white' }} />}
+                    onClick={() => setLayers([...layers, { type: 'linear', in: 128, out: 64 }])}
+                  >
+                    <Typography> Add Layer</Typography>
+                  </Button>
+                </Stack>
 
-              <Typography>Delay (s): {wsSleep}</Typography>
-              <TextField
-                type="number"
-                size="small"
-                value={wsSleep}
-                onChange={(e) => setWsSleep(Math.max(0, parseFloat(e.target.value) || 0))}
-                sx={{ width: '100px' }}
-              />
-            </Stack>
-          </Stack>
+                <Stack spacing={1.5}>
+                  {layers.map((layer, index) => (
+                    <Card
+                      key={index}
+                      sx={{
+                        p: 2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2,
+                        bgcolor: 'rgba(255,255,255,0.03)',
+                        border: '1px solid rgba(255,255,255,0.05)',
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ minWidth: 40, opacity: 0.5 }}>
+                        L{index}
+                      </Typography>
+                      <TextField
+                        select
+                        size="small"
+                        value={layer.type}
+                        onChange={(e) => updateLayer(index, 'type', e.target.value)}
+                        sx={{ width: 120 }}
+                      >
+                        {LAYER_TYPES.map((t) => (
+                          <MenuItem key={t} value={t}>
+                            {t.toUpperCase()}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+
+                      {layer.type === 'linear' && (
+                        <>
+                          <TextField
+                            label="In"
+                            size="small"
+                            type="number"
+                            value={layer.in ?? ''}
+                            onChange={(e) => updateLayer(index, 'in', e.target.value)}
+                            sx={{ width: 100 }}
+                          />
+                          <TextField
+                            label="Out"
+                            size="small"
+                            type="number"
+                            value={layer.out ?? ''}
+                            onChange={(e) => updateLayer(index, 'out', e.target.value)}
+                            sx={{ width: 100 }}
+                          />
+                        </>
+                      )}
+                      <IconButton
+                        size="small"
+                        onClick={() => setLayers(layers.filter((_, i) => i !== index))}
+                        color="error"
+                        sx={{ ml: 'auto' }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Card>
+                  ))}
+                </Stack>
+              </Paper>
+            </Grid>
+          </Grid>
+
+          {/* Advanced & Visual Controls */}
+          <Paper
+            sx={{
+              p: 3,
+              borderRadius: 4,
+              bgcolor: 'transparent',
+              border: '1px dashed rgba(255,255,255,0.2)',
+            }}
+          >
+            <Grid container spacing={3} alignItems="center">
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Stack direction="row" spacing={2}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={hideReLULayers}
+                        onChange={() => setHideReLULayers(!hideReLULayers)}
+                        sx={{
+                          color: '#fff',
+                          '&.Mui-checked': { color: '#fff' },
+                        }}
+                      />
+                    }
+                    label="Hide Non-Linearities"
+                    sx={{ color: '#fff' }}
+                  />
+
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={showGrad}
+                        onChange={() => setShowGrad(!showGrad)}
+                        sx={{
+                          color: '#fff',
+                          '&.Mui-checked': { color: '#fff' },
+                        }}
+                      />
+                    }
+                    label="Visualize Gradients"
+                    sx={{ color: '#fff' }}
+                  />
+                </Stack>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Stack direction="row" spacing={2} justifyContent="flex-end">
+                  <Tooltip title="How many steps to skip before sending a visual update">
+                    <TextField
+                      label="Batch Interval"
+                      size="small"
+                      value={sendEvery}
+                      onChange={(e) => setSendEvery(e.target.value)}
+                      sx={{ width: 100 }}
+                    />
+                  </Tooltip>
+                  <Tooltip title="Delay in seconds to slow down visualization for study">
+                    <TextField
+                      label="Frame Delay"
+                      size="small"
+                      value={wsSleep}
+                      onChange={(e) => setWsSleep(e.target.value)}
+                      sx={{ width: 100 }}
+                    />
+                  </Tooltip>
+                </Stack>
+              </Grid>
+            </Grid>
+          </Paper>
 
           <Button
             variant="contained"
-            size="large"
-            startIcon={<PlayArrowIcon />}
+            fullWidth
             onClick={handleStartTraining}
-            sx={{ height: '56px', fontSize: '1.2rem' }}
+            sx={{
+              py: 2,
+              borderRadius: 3,
+              fontWeight: 'bold',
+              fontSize: '1.1rem',
+              background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)',
+            }}
+            startIcon={<PlayArrowIcon />}
           >
-            Initialize & Start Training
+            Launch Neural Training
           </Button>
         </Stack>
       </Container>
+
+      <Snackbar
+        open={notification.open}
+        autoHideDuration={6000}
+        onClose={handleCloseNotify}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={handleCloseNotify}
+          severity={notification.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {notification.message}
+        </Alert>
+      </Snackbar>
+
       {isTraining && (
         <TrainVisualizer
-          modelConfig={modelConfig}
+          modelConfig={{ ...config, layers }}
           isTraining={isTraining}
           hideReluLayers={hideReLULayers}
           showGrad={showGrad}

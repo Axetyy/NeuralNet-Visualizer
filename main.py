@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from model import DynamicModel
+from model import DynamicModel,PretrainedModel
 from torchvision import datasets,transforms
 
 from pydantic import BaseModel
@@ -70,9 +70,9 @@ def register_hooks(model):
             state['gradients'][name] = normalized_grad
         return hook
 
-    for idx, layer in enumerate(model.layers):
+    for idx, layer in enumerate(model.layers if hasattr(model, 'layers') else model.children()):
         layer_name = f"layer_{idx}"
-        is_input = idx == 0
+        is_input = (idx == 0)
         layer.register_forward_hook(forward_hooks(layer_name, is_input))
         layer.register_full_backward_hook(backward_hooks(layer_name, is_input))
 
@@ -89,6 +89,9 @@ class SetupConfig(BaseModel):
     batch_size: int
     send_every:int
     ws_sleep:float
+    
+class DrawRequest(BaseModel):
+    pixels: List[float]
 
 @app.post('/setup')
 async def setup_model(config: SetupConfig):
@@ -122,7 +125,7 @@ async def setup_model(config: SetupConfig):
 async def train_stream(websocket:WebSocket):
     await websocket.accept()
     
-    train_transform = transforms.Compose([transforms.ToTensor(),transforms.Lambda(lambda x: x.flatten())])
+    train_transform = transforms.Compose([transforms.ToTensor(),transforms.Lambda(lambda x: x.flatten()),transforms.Normalize()])
     train_set = datasets.MNIST('./data',train=True,download=True,transform=train_transform)
     
     train_loader = torch.utils.data.DataLoader(train_set,batch_size=state['batch_size'],shuffle=True)
@@ -161,16 +164,38 @@ async def train_stream(websocket:WebSocket):
     await websocket.close()
 
 @app.post("/draw")
-async def draw_model(payload:dict):
-    img = torch.tensor(payload).view(1,784)
-    activations = []
-    x = img
-    for layer in state['model'].layers:
-        x = layer(x)
-        if isinstance(layer,nn.Linear):
-            activations.append(x.detach().squeeze().tolist())
-    return {'pred_probabilities':torch.softmax(x,dim=1), 'activations':activations}
+async def draw_model(payload: List[float]):
+    img = torch.tensor(payload, dtype=torch.float32).view(1, 784)
 
+    state['activations']={}
+    state['gradients']={}
+
+    model = PretrainedModel(10)
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model.load_state_dict(torch.load(
+        "model_weights.pth", 
+        map_location=device, 
+        weights_only=True
+    ))
+    
+    model.to(device)
+    model.eval()
+
+    register_hooks(model) 
+
+    with torch.no_grad():
+        img = img.to(device)
+        output = model(img)
+
+    predicted = torch.argmax(output,dim=1).item()
+    layer_keys = [f"layer_{i}" for i in range(len(model.layers))]
+
+    return {
+        "forward_wave": [state['activations'].get(k, []) for k in layer_keys],
+        "predicted": predicted,
+        "probabilities": probs.tolist(),
+    }
 if __name__ == '__main__':
     import uvicorn 
     uvicorn.run(app,host='0.0.0.0',port=8000)

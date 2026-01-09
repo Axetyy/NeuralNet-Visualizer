@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Box, Paper, Typography, Stack } from '@mui/material';
-import { motion } from 'framer-motion';
-import { ModelConfig } from '<@>/types';
+import { Box, Paper, Typography, Stack, Divider, Chip, Button } from '@mui/material';
+import { AnimatePresence, motion } from 'framer-motion';
+import AssesmentIcon from '@mui/icons-material/Assessment';
+import { GlowState, ModelConfig } from '<@>/types';
 
 interface TrainVisualizerProps {
   modelConfig: ModelConfig;
@@ -20,7 +21,7 @@ type TrainingData = {
   trueLabel?: number;
   accuracy?: number;
 };
-
+const MotionPaper = motion(Paper);
 const TrainVisualizer: React.FC<TrainVisualizerProps> = ({
   modelConfig,
   isTraining,
@@ -35,6 +36,8 @@ const TrainVisualizer: React.FC<TrainVisualizerProps> = ({
 
   const wsRef = useRef<WebSocket | null>(null);
   const [trainingStopped, setTrainingStopped] = useState(false);
+  const [glow, setGlow] = useState<GlowState>(null);
+  const glowTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const connect = async () => {
@@ -67,59 +70,114 @@ const TrainVisualizer: React.FC<TrainVisualizerProps> = ({
     };
     connect();
   }, [isTraining]);
+  useEffect(() => {
+    const glow = async () => {
+      const { predicted, trueLabel } = trainingData;
+
+      if (predicted === undefined || trueLabel === undefined) return;
+
+      const isCorrect = predicted === trueLabel;
+
+      setGlow(isCorrect ? 'correct' : 'wrong');
+
+      if (glowTimeoutRef.current) {
+        clearTimeout(glowTimeoutRef.current);
+      }
+
+      glowTimeoutRef.current = setTimeout(() => {
+        setGlow(null);
+      }, 200);
+    };
+    glow();
+  }, [trainingData.predicted, trainingData.trueLabel]);
 
   const layersToRender = hideReluLayers
     ? modelConfig.layers.filter((l) => l.type.toLowerCase() !== 'relu')
     : modelConfig.layers;
 
   return (
-    <Stack alignItems={'center'} justifyContent={'center'}>
-      {trainingStopped && (
-        <Box
-          sx={{
-            backgroundColor: 'rgba(255,0,0,0.85)',
-            borderRadius: 1,
-            padding: 1,
-          }}
-        >
-          <Typography variant="h3" sx={{ fontWeight: 'bold', color: '#fff' }}>
-            Training Stopped
-          </Typography>
-        </Box>
-      )}
-      <Paper
+    <Stack spacing={2} sx={{ width: '100%', mt: 4, position: 'relative' }}>
+      <MotionPaper
+        initial={{ opacity: 0, y: 20 }}
+        animate={{
+          opacity: 1,
+          y: 0,
+          boxShadow:
+            glow === 'correct'
+              ? '0 0 50px rgba(34, 197, 94, 0.2)'
+              : glow === 'wrong'
+              ? '0 0 50px rgba(239, 68, 68, 0.2)'
+              : '0 10px 30px rgba(0,0,0,0.5)',
+        }}
         sx={{
-          width: '96.5%',
-          height: '100vh',
           p: 4,
-          backgroundColor: '#020617',
+          background: 'rgba(15, 23, 42, 0.8)',
+          backdropFilter: 'blur(12px)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 6,
           color: '#fff',
-          borderRadius: 4,
+          minHeight: '600px',
+          position: 'relative',
+          overflow: 'hidden',
         }}
       >
-        <Stack
-          direction="row"
-          justifyContent="space-between"
-          mb={4}
-          sx={{ height: '10%', minHeight: '50px' }}
-        >
-          <Typography variant="h5" fontWeight="bold">
-            Live Neural Network
-          </Typography>
-          <Stack>
-            <Typography color="primary.light" variant="h5" sx={{ fontFamily: 'monospace' }}>
-              LOSS: {trainingData.loss.toFixed(4)}
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={6}>
+          <Box>
+            <Typography variant="h5" fontWeight="800" sx={{ letterSpacing: -0.5 }}>
+              Live Execution Trace
             </Typography>
-            <Typography variant="caption" sx={{ color: '#64748b' }}>
-              ACCURACY: {trainingData.accuracy}
+            <Typography
+              variant="caption"
+              sx={{ color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: 1 }}
+            >
+              Real-time weights & activation firing
             </Typography>
-            {trainingData.predicted !== undefined && trainingData.trueLabel !== undefined && (
-              <>
-                <Typography variant="caption">
-                  Predicted: {trainingData.predicted}, True: {trainingData.trueLabel}
-                </Typography>
-              </>
-            )}
+          </Box>
+
+          <Stack
+            direction="row"
+            spacing={4}
+            divider={
+              <Divider
+                orientation="vertical"
+                flexItem
+                sx={{ borderColor: 'rgba(255,255,255,0.1)' }}
+              />
+            }
+          >
+            <Box textAlign="right">
+              <Typography
+                sx={{
+                  color: '#60a5fa',
+                  fontFamily: 'monospace',
+                  fontSize: '1.5rem',
+                  fontWeight: 'bold',
+                }}
+              >
+                {trainingData.loss.toFixed(4)}
+              </Typography>
+              <Typography variant="caption" sx={{ opacity: 0.6 }}>
+                CURRENT LOSS
+              </Typography>
+            </Box>
+            <Box textAlign="right">
+              <Typography
+                sx={{
+                  color: '#c084fc',
+                  fontFamily: 'monospace',
+                  fontSize: '1.5rem',
+                  fontWeight: 'bold',
+                }}
+              >
+                {trainingData.accuracy !== undefined
+                  ? (trainingData.accuracy * 100).toFixed(2)
+                  : '0'}
+                %
+              </Typography>
+              <Typography variant="caption" sx={{ opacity: 0.6 }}>
+                ACCURACY
+              </Typography>
+            </Box>
           </Stack>
         </Stack>
         <Box
@@ -127,11 +185,10 @@ const TrainVisualizer: React.FC<TrainVisualizerProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 4,
-            minHeight: '400px',
+            gap: 6,
             width: '100%',
-            flexWrap: 'nowrap',
             overflowX: 'auto',
+            py: 4,
           }}
         >
           {layersToRender.map((layer, idx) => {
@@ -145,33 +202,33 @@ const TrainVisualizer: React.FC<TrainVisualizerProps> = ({
             const isOutput = layer.type.toLowerCase() === 'linear' && layer.out === 10;
             const isLargeLayer = neuronCount > 128;
             const cols = isOutput ? 1 : isInput ? 28 : Math.ceil(Math.sqrt(neuronCount));
-            const dotSize = isInput ? 6 : isLargeLayer ? 8 : 12;
+
+            const dotSize = isOutput ? 28 : isInput ? 6 : isLargeLayer ? 8 : 12;
             const gradientIntensity = showGrad ? (layerGradient[origIdx] ?? 0) * 0.75 : 0;
             return (
               <Box key={origIdx} sx={{ textAlign: 'center', transition: 'all 0.3s' }}>
-                <Typography
-                  variant="caption"
+                <Chip
+                  label={`${layer.type.toUpperCase()}`}
+                  size="small"
                   sx={{
-                    mb: 1.5,
-                    display: 'block',
-                    color: '#94a3b8',
-                    fontSize: '0.65rem',
-                    letterSpacing: 1,
+                    mb: 2,
+                    bgcolor: 'rgba(255,255,255,0.05)',
+                    color: 'rgba(255,255,255,0.6)',
+                    fontWeight: 'bold',
+                    fontSize: '0.6rem',
                   }}
-                >
-                  {layer.type.toUpperCase()} ({neuronCount})
-                </Typography>
+                />
 
                 <Box
                   sx={{
                     display: 'grid',
                     gridTemplateColumns: `repeat(${cols}, ${dotSize}px)`,
-                    gap: isLargeLayer ? '2px' : '6px',
-                    justifyContent: 'center',
-                    p: 1.5,
-                    borderRadius: 2,
-                    backgroundColor: isLargeLayer ? 'rgba(255,255,255,0.03)' : 'transparent',
-                    border: isLargeLayer ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                    gap: isLargeLayer ? '1px' : '4px',
+                    p: 2,
+                    borderRadius: 3,
+                    background: 'rgba(255,255,255,0.02)',
+                    border: '1px solid rgba(255,255,255,0.05)',
+                    boxShadow: 'inset 0 0 20px rgba(0,0,0,0.2)',
                   }}
                 >
                   {(layerActivation.length > 0 ? layerActivation : Array(neuronCount).fill(0)).map(
@@ -179,48 +236,127 @@ const TrainVisualizer: React.FC<TrainVisualizerProps> = ({
                       <motion.div
                         key={nIdx}
                         animate={{
-                          backgroundColor: `rgba(96,165,250,${0.3 + 0.7 * intensity})`,
-                          boxShadow: `
-  0px 0px ${dotSize}px rgba(96,165,250,${0.5 * intensity}),
-  0px 0px ${dotSize * 1.5}px rgba(255, 60, 60, ${gradientIntensity})
-`,
-
-                          scale: 1 + 0.3 * intensity,
+                          backgroundColor:
+                            isOutput && trainingData.predicted === nIdx
+                              ? '#22c55e'
+                              : `rgba(96,165,250,${0.1 + 0.9 * intensity})`,
+                          scale:
+                            isOutput && trainingData.predicted === nIdx ? 1.2 : 1 + 0.2 * intensity,
+                          boxShadow:
+                            isOutput && trainingData.predicted === nIdx
+                              ? '0 0 14px rgba(0, 255, 120, 1)'
+                              : `
+          0px 0px ${dotSize}px rgba(96,165,250,${0.4 * intensity}),
+          0px 0px ${dotSize * 1.4}px rgba(255, 60, 60, ${gradientIntensity})
+        `,
                         }}
-                        transition={{ duration: 0.1 }}
+                        transition={{ duration: 0.12 }}
                         style={{
                           width: dotSize,
                           height: dotSize,
-                          borderRadius: isLargeLayer ? '2px' : '50%',
-                          border: '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: isOutput ? '4px' : '50%',
+                          boxShadow:
+                            intensity > 0.5 ? `0 0 10px rgba(96,165,250,${intensity})` : 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: '1px solid rgba(255,255,255,0.05)',
                         }}
-                      />
+                      >
+                        {isOutput && (
+                          <Typography
+                            component="span"
+                            sx={{
+                              fontSize: 14,
+                              lineHeight: 1,
+                              pointerEvents: 'none',
+                              opacity: intensity > 0.15 ? 1 : 0.4,
+                            }}
+                          >
+                            {nIdx}
+                          </Typography>
+                        )}
+                      </motion.div>
                     ),
                   )}
                 </Box>
+                <Typography
+                  variant="caption"
+                  sx={{ mt: 1, display: 'block', opacity: 0.4, fontSize: '0.6rem' }}
+                >
+                  {neuronCount} units
+                </Typography>
               </Box>
             );
           })}
-          <Stack spacing="8px" mt={6.5}>
-            {Array.from({ length: 10 }).map((_, i) => (
-              <Typography
-                key={i}
-                variant="caption"
-                sx={{
-                  height: 12,
-                  display: 'flex',
-                  alignItems: 'center',
-                  fontSize: '0.75rem',
-                  color: trainingData.predicted === i ? 'primary.main' : '#475569',
-                  fontWeight: trainingData.predicted === i ? 'bold' : 'normal',
-                }}
-              >
-                {i}
-              </Typography>
-            ))}
-          </Stack>
         </Box>
-      </Paper>
+        <AnimatePresence>
+          {trainingStopped && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(15, 23, 42, 0.9)',
+                backdropFilter: 'blur(8px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 10,
+              }}
+            >
+              <Stack alignItems="center" spacing={3}>
+                <AssesmentIcon sx={{ fontSize: 60, color: 'white' }} />
+                <Box textAlign="center">
+                  <Typography variant="h4" fontWeight="bold" gutterBottom>
+                    Training Complete
+                  </Typography>
+                  <Typography variant="h6" sx={{ color: 'primary.light', fontFamily: 'monospace' }}>
+                    Final Accuracy: {trainingData.accuracy?.toFixed(2)}%
+                  </Typography>
+                </Box>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={() => window.location.reload()}
+                  sx={{ color: 'gradients.primary' }}
+                >
+                  <Typography>Configure New Run</Typography>
+                </Button>
+              </Stack>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </MotionPaper>
+      <Stack direction="row" spacing={2} justifyContent="center">
+        {trainingData.predicted !== undefined && (
+          <Paper
+            sx={{
+              px: 3,
+              py: 1,
+              borderRadius: 10,
+              bgcolor: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.1)',
+            }}
+          >
+            <Typography variant="body2">
+              Latest Inference:{' '}
+              <span
+                style={{ color: glow === 'correct' ? '#4ade80' : '#f87171', fontWeight: 'bold' }}
+              >
+                {trainingData.predicted}
+              </span>
+              <span style={{ opacity: 0.5, marginLeft: 8 }}>
+                (Target: {trainingData.trueLabel})
+              </span>
+            </Typography>
+          </Paper>
+        )}
+      </Stack>
     </Stack>
   );
 };

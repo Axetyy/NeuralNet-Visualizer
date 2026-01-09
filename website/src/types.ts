@@ -1,4 +1,4 @@
-type ModelLayerType = 'linear' | 'relu' | 'sigmoid';
+type ModelLayerType = 'linear' | 'relu' | 'sigmoid' | 'batchnorm';
 
 export type ModelConfig = {
   layers: ModelLayer[];
@@ -11,3 +11,4 @@ export type ModelLayer = {
   in?: number;
   out?: number;
 };
+export type GlowState = 'correct' | 'wrong' | null;
