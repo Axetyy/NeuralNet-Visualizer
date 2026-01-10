@@ -18,8 +18,8 @@ export const DrawVisualizer: React.FC<DrawVisualizerProps> = ({
   return (
     <Paper
       sx={{
-        width: '90%',
         p: 4,
+        height: '80%',
         backgroundColor: '#020617',
         color: '#fff',
         borderRadius: 4,
@@ -29,7 +29,7 @@ export const DrawVisualizer: React.FC<DrawVisualizerProps> = ({
         Neural Network Activation
       </Typography>
 
-      <Box display="flex" gap={6} overflow="auto">
+      <Box display="flex" gap={6} overflow="auto" alignItems={'center'} justifyContent={'center'}>
         {modelConfig.map((layer, idx) => {
           const activations = forward[idx] ?? [];
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -39,12 +39,12 @@ export const DrawVisualizer: React.FC<DrawVisualizerProps> = ({
 
           if (layer.type !== 'linear') return;
           return (
-            <Box key={idx} textAlign="center">
+            <Box key={idx} textAlign="center" alignItems={'center'} justifyContent={'center'}>
               <Typography variant="caption" color="#94a3b8">
-                {layer.type.toUpperCase()}
+                {layer.type.toUpperCase()} {!isOutputLayer ? layer.out : null}
               </Typography>
 
-              <Box display="grid" gridTemplateColumns={`repeat(${cols}, 10px)`} gap="8px" mt={1}>
+              <Box display="grid" gridTemplateColumns={`repeat(${cols}, 8px)`} gap="6px" mt={1}>
                 {Array.from({ length: count }).map((_, i) => {
                   const v = activations[i] ?? 0;
                   const isPred = isOutputLayer && predicted === i;

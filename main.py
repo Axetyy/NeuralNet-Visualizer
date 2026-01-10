@@ -125,7 +125,7 @@ async def setup_model(config: SetupConfig):
 async def train_stream(websocket:WebSocket):
     await websocket.accept()
     
-    train_transform = transforms.Compose([transforms.ToTensor(),transforms.Lambda(lambda x: x.flatten()),transforms.Normalize()])
+    train_transform = transforms.Compose([transforms.ToTensor(),transforms.Lambda(lambda x: x.flatten()),transforms.Lambda(lambda x : x/255.0)])
     train_set = datasets.MNIST('./data',train=True,download=True,transform=train_transform)
     
     train_loader = torch.utils.data.DataLoader(train_set,batch_size=state['batch_size'],shuffle=True)
@@ -194,7 +194,6 @@ async def draw_model(payload: List[float]):
     return {
         "forward_wave": [state['activations'].get(k, []) for k in layer_keys],
         "predicted": predicted,
-        "probabilities": probs.tolist(),
     }
 if __name__ == '__main__':
     import uvicorn 

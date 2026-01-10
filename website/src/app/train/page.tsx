@@ -17,6 +17,7 @@ import {
   Snackbar,
   Alert,
   Tooltip,
+  Link,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
@@ -25,6 +26,8 @@ import TuneIcon from '@mui/icons-material/Tune';
 import LayersIcon from '@mui/icons-material/Layers';
 import TrainVisualizer from '<@>/components/TrainVisualizer/TrainVisualizer';
 import { ModelLayer } from '<@>/types';
+import theme from '<@>/theme';
+import { validateModel } from '<@>/lib/train';
 
 const OPTIMIZERS = ['Adam', 'SGD', 'RMSprop'];
 const LAYER_TYPES = ['linear', 'relu', 'sigmoid'];
@@ -67,35 +70,8 @@ const TrainPage: React.FC = () => {
     setLayers(newLayers);
   };
 
-  const validateModel = () => {
-    const firstLayer = layers[0];
-    const lastLayer = layers[layers.length - 1];
-
-    if (firstLayer.type !== 'linear' || firstLayer.in !== 784) {
-      setNotification({
-        open: true,
-        message:
-          "Failsafe Triggered: The first layer must be a Linear layer with an 'In' size of 784 (MNIST input).",
-        severity: 'error',
-      });
-      return false;
-    }
-
-    if (lastLayer.type !== 'linear' || lastLayer.out !== 10) {
-      setNotification({
-        open: true,
-        message:
-          "Failsafe Triggered: The final layer must be a Linear layer with an 'Out' size of 10 (Digits 0-9).",
-        severity: 'error',
-      });
-      return false;
-    }
-
-    return true;
-  };
-
   const handleStartTraining = async () => {
-    if (!validateModel()) return;
+    if (!validateModel(layers, setNotification)) return;
 
     try {
       const response = await fetch('http://localhost:8000/setup', {
@@ -136,23 +112,37 @@ const TrainPage: React.FC = () => {
     >
       <Container sx={{ pt: 6 }}>
         <Stack spacing={4}>
-          <Box>
-            <Typography
-              variant="h3"
-              fontWeight="800"
-              sx={{
-                background: 'linear-gradient(90deg, #60a5fa, #c084fc)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}
-            >
-              Architecture Studio
-            </Typography>
-            <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.6)' }}>
-              Design your network. Ensure the input (784) and output (10) match the MNIST dataset
-              requirements.
-            </Typography>
-          </Box>
+          <Stack direction="row" alignItems={'center'} justifyContent={'space-between'} p={4}>
+            <Stack>
+              <Typography
+                variant="h3"
+                fontWeight="800"
+                sx={{
+                  background: 'linear-gradient(90deg, #60a5fa, #c084fc)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                Training Studio
+              </Typography>
+              <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.6)' }}>
+                Design your network. Ensure the input (784) and output (10) match the MNIST dataset
+                requirements.
+              </Typography>
+            </Stack>
+            <Link href="/">
+              <Button
+                variant="outlined"
+                sx={{
+                  '&:hover': {
+                    borderColor: theme.palette.info.main,
+                  },
+                }}
+              >
+                <Typography variant="h6">Go Back</Typography>
+              </Button>
+            </Link>
+          </Stack>
 
           <Grid container spacing={3}>
             <Grid size={{ xs: 12, md: 4 }}>

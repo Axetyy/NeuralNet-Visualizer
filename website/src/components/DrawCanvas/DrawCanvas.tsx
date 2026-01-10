@@ -1,12 +1,13 @@
 'use client';
 import { useRef, useEffect } from 'react';
-import { Button, Stack } from '@mui/material';
+import { Box, Button, Stack } from '@mui/material';
 
 interface DrawCanvasProps {
   onPredict: (pixels: number[]) => void;
+  sensitivity: number;
 }
 
-export const DrawCanvas: React.FC<DrawCanvasProps> = ({ onPredict }) => {
+export const DrawCanvas: React.FC<DrawCanvasProps> = ({ onPredict, sensitivity }) => {
   const displayCanvasRef = useRef<HTMLCanvasElement>(null);
   const drawCanvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -25,10 +26,10 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({ onPredict }) => {
 
     const x = (e.clientX - rect.left) * scale;
     const y = (e.clientY - rect.top) * scale;
-
-    ctx.fillStyle = 'rgba(255,255,255,0.66)';
+    const size = 20 * sensitivity;
+    ctx.fillStyle = `rgba(255,255,255,${sensitivity})`;
     ctx.beginPath();
-    ctx.arc(x, y, 12, 0, Math.PI * 2);
+    ctx.arc(x, y, size, 0, Math.PI * 2);
     ctx.fill();
     const displayCtx = displayCanvasRef.current!.getContext('2d')!;
     displayCtx.drawImage(canvas, 0, 0, 280, 280, 0, 0, 280, 280);
@@ -79,13 +80,14 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({ onPredict }) => {
       <canvas ref={drawCanvasRef} width={280} height={280} style={{ display: 'none' }} />
 
       <Stack direction="row" spacing={2}>
-        <Button onClick={predict} variant="contained">
+        <Button onClick={predict} variant="contained" color="primary">
           Predict
         </Button>
-        <Button onClick={clear} variant="outlined">
+        <Button onClick={clear} variant="contained" color="primary">
           Clear
         </Button>
       </Stack>
+      <Box height="20px" />
     </Stack>
   );
 };
