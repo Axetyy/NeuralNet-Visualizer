@@ -106,8 +106,31 @@ const TrainPage: React.FC = () => {
     <Box
       sx={{
         minHeight: '100vh',
-        background: 'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)',
         color: '#fff',
+        background: `
+      linear-gradient(
+        180deg,
+        #0f172a,
+        #1e293b,
+        #0b1f4b,
+        #0e1347,
+        #0f172a
+      )
+    `,
+        backgroundSize: '100% 300%',
+        animation: 'trainGradient 22s ease-in-out infinite',
+
+        '@keyframes trainGradient': {
+          '0%': {
+            backgroundPosition: '50% 0%',
+          },
+          '50%': {
+            backgroundPosition: '50% 100%',
+          },
+          '100%': {
+            backgroundPosition: '50% 0%',
+          },
+        },
       }}
     >
       <Container sx={{ pt: 6 }}>
@@ -115,7 +138,7 @@ const TrainPage: React.FC = () => {
           <Stack direction="row" alignItems={'center'} justifyContent={'space-between'} p={4}>
             <Stack>
               <Typography
-                variant="h3"
+                variant="h2"
                 fontWeight="800"
                 sx={{
                   background: 'linear-gradient(90deg, #60a5fa, #c084fc)',

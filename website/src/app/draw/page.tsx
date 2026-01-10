@@ -67,31 +67,60 @@ export default function DrawPage() {
       sx={{
         height: '100vh',
         width: '100vw',
-        overflow: 'hidden',
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+        overflow: 'auto',
         display: 'flex',
         flexDirection: 'column',
+
+        background: `
+      linear-gradient(
+        270deg,
+        #0f172a,
+        #1e293b,
+        #0f123a,
+        #150d36,
+        #0f172a
+      )
+    `,
+        backgroundSize: '400% 400%',
+        animation: 'drawGradient 30s smooth infinite',
+
+        '@keyframes drawGradient': {
+          '0%': {
+            backgroundPosition: '0% 50%',
+          },
+          '50%': {
+            backgroundPosition: '100% 50%',
+          },
+          '100%': {
+            backgroundPosition: '0% 50%',
+          },
+        },
       }}
     >
       <Stack
         direction={'row'}
         sx={{
-          p: 2,
+          px: 0,
+          py: 2,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
+          justifyContent: 'space-around',
+          backgroundColor: '',
           borderBottom: '1px solid rgba(255,255,255,0.1)',
         }}
       >
         <Stack direction="row" spacing={5} alignItems="center">
-          <Typography variant="h5" fontWeight="700" color="white">
-            Neural Inference Workspace
+          <Typography
+            variant="h2"
+            fontWeight="800"
+            sx={{
+              background: 'linear-gradient(90deg, #60a5fa, #c084fc)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >
+            Model Inference
           </Typography>
-          <Chip
-            label="Live Model: Pretrained MNIST"
-            size="small"
-            sx={{ color: '#60a5fa', borderColor: '#60a5fa', border: '1px solid' }}
-          />
         </Stack>
         <Link href="/">
           <Button
@@ -236,6 +265,11 @@ export default function DrawPage() {
                   </Stack>
                 )}
               </Stack>
+              <Chip
+                label="Live Model: Pretrained MNIST"
+                size="small"
+                sx={{ color: '#60a5fa', borderColor: '#60a5fa', border: '1px solid', m: 2, mt: 0 }}
+              />
               <DrawVisualizer
                 modelConfig={modelConfig}
                 forward={activations}

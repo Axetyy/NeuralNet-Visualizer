@@ -80,10 +80,10 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({ onPredict, sensitivity }
       <canvas ref={drawCanvasRef} width={280} height={280} style={{ display: 'none' }} />
 
       <Stack direction="row" spacing={2}>
-        <Button onClick={predict} variant="contained" color="primary">
+        <Button onClick={predict} variant="contained" color="secondary">
           Predict
         </Button>
-        <Button onClick={clear} variant="contained" color="primary">
+        <Button onClick={clear} variant="contained" color="secondary">
           Clear
         </Button>
       </Stack>
