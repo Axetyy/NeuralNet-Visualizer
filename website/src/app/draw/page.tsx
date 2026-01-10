@@ -19,6 +19,7 @@ import { ModelLayer } from '<@>/types';
 import BrushIcon from '@mui/icons-material/Brush';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import theme from '<@>/theme';
+import { API_BASE } from '<@>/lib/train';
 
 const modelConfig: ModelLayer[] = [
   { type: 'linear', in: 784, out: 1024 },
@@ -45,7 +46,7 @@ export default function DrawPage() {
     setActivations([]);
     setPredicted(null);
     try {
-      const res = await fetch('http://localhost:8000/draw', {
+      const res = await fetch(`${API_BASE}/draw`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(pixels),

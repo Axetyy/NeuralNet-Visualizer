@@ -5,6 +5,7 @@ import { Box, Paper, Typography, Stack, Divider, Chip, Button } from '@mui/mater
 import { AnimatePresence, motion } from 'framer-motion';
 import AssesmentIcon from '@mui/icons-material/Assessment';
 import { GlowState, ModelConfig } from '<@>/types';
+import { API_BASE } from '<@>/lib/train';
 
 interface TrainVisualizerProps {
   modelConfig: ModelConfig;
@@ -43,7 +44,7 @@ const TrainVisualizer: React.FC<TrainVisualizerProps> = ({
     const connect = async () => {
       if (!isTraining || typeof window === 'undefined') return;
 
-      const ws = new WebSocket('ws://localhost:8000/ws/train');
+      const ws = new WebSocket(`ws://${API_BASE}/ws/train`);
       wsRef.current = ws;
       setTrainingStopped(false);
       ws.onmessage = (event) => {

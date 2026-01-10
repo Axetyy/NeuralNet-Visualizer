@@ -1,3 +1,5 @@
+export const API_BASE = 'https://neuralnet-visualizer.onrender.com'
+
 import { ModelLayer } from '<@>/types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

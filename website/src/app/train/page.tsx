@@ -27,7 +27,7 @@ import LayersIcon from '@mui/icons-material/Layers';
 import TrainVisualizer from '<@>/components/TrainVisualizer/TrainVisualizer';
 import { ModelLayer } from '<@>/types';
 import theme from '<@>/theme';
-import { validateModel } from '<@>/lib/train';
+import { API_BASE, validateModel } from '<@>/lib/train';
 
 const OPTIMIZERS = ['Adam', 'SGD', 'RMSprop'];
 const LAYER_TYPES = ['linear', 'relu', 'sigmoid'];
@@ -74,7 +74,7 @@ const TrainPage: React.FC = () => {
     if (!validateModel(layers, setNotification)) return;
 
     try {
-      const response = await fetch('http://localhost:8000/setup', {
+      const response = await fetch(`${API_BASE}/setup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
