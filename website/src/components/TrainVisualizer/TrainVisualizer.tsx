@@ -44,7 +44,7 @@ const TrainVisualizer: React.FC<TrainVisualizerProps> = ({
     const connect = async () => {
       if (!isTraining || typeof window === 'undefined') return;
 
-      const ws = new WebSocket(`wss://${API_BASE}/ws/train`);
+      const ws = new WebSocket(`wss://neuralnet-visualizer.onrender.com/ws/train`);
       wsRef.current = ws;
       setTrainingStopped(false);
       ws.onmessage = (event) => {
