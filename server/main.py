@@ -1,3 +1,4 @@
+import os;
 from asyncio.log import logger
 import torch
 import torch.nn as nn
@@ -173,8 +174,9 @@ async def draw_model(payload: List[float]):
     model = PretrainedModel(10)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    weights_path = os.path.join(os.getcwd(),'model_weights.pth')
     model.load_state_dict(torch.load(
-        "model_weights.pth", 
+        weights_path, 
         map_location=device, 
         weights_only=True
     ))

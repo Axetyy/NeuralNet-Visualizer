@@ -40,6 +40,7 @@ export default function DrawPage() {
   const [activations, setActivations] = useState<number[][]>([]);
   const [predicted, setPredicted] = useState<number | null>(null);
   const [sensitivity, setSensitivity] = useState<number>(0.75);
+  const [brushSize, setBrushSize] = useState<number>(12);
   const handlePredict = async (pixels: number[]) => {
     setActivations([]);
     setPredicted(null);
@@ -65,7 +66,7 @@ export default function DrawPage() {
   return (
     <Box
       sx={{
-        height: '100vh',
+        minHeight: '100vh',
         width: '100vw',
         overflow: 'auto',
         display: 'flex',
@@ -158,7 +159,11 @@ export default function DrawPage() {
                   justifyContent: 'center',
                 }}
               >
-                <DrawCanvas onPredict={handlePredict} sensitivity={sensitivity} />
+                <DrawCanvas
+                  onPredict={handlePredict}
+                  sensitivity={sensitivity}
+                  brushSize={brushSize}
+                />
               </Box>
               <Typography
                 variant="caption"
@@ -197,15 +202,39 @@ export default function DrawPage() {
                     max={1}
                     step={0.01}
                     value={sensitivity}
-                    onChange={(_, value) => setSensitivity(value as number)}
+                    onChange={(_, value) => setSensitivity(value)}
                     valueLabelDisplay="auto"
                     valueLabelFormat={(v) => `${v.toFixed(2)}×`}
                     sx={{
-                      color: '#60a5fa',
+                      color: '#66a5f7',
                     }}
                   />
                 </Box>
+                <Box>
+                  <Stack direction="row" spacing={1} alignItems="center" mb={0.5}>
+                    <Typography variant="body2" fontWeight="bold">
+                      Brush size
+                    </Typography>
+                    <Typography variant="caption" color="rgba(255,255,255,0.6)">
+                      ({brushSize.toFixed(2)}×)
+                    </Typography>
+                  </Stack>
 
+                  <Slider
+                    size="small"
+                    min={1}
+                    max={24}
+                    step={1}
+                    value={brushSize}
+                    onChange={(_, value) => setBrushSize(value)}
+                    valueLabelDisplay="auto"
+                    valueLabelFormat={(v) => `${v.toFixed(2)}×`}
+                    sx={{
+                      color: '#66a5f7',
+                    }}
+                  />
+                </Box>
+                <Divider sx={{ bgcolor: 'rgba(255,255,255,0.1)' }} />
                 <Box>
                   <Stack direction="row" spacing={1} alignItems="center" mb={0.5}>
                     <BrushIcon fontSize="small" />
@@ -215,18 +244,6 @@ export default function DrawPage() {
                   </Stack>
                   <Typography variant="caption" color="rgba(255,255,255,0.6)">
                     Draw a digit (0-9) centered in the box above.
-                  </Typography>
-                </Box>
-                <Divider sx={{ bgcolor: 'rgba(255,255,255,0.1)' }} />
-                <Box>
-                  <Stack direction="row" spacing={1} alignItems="center" mb={0.5}>
-                    <PsychologyIcon fontSize="small" />
-                    <Typography variant="body2" fontWeight="bold">
-                      Analyze
-                    </Typography>
-                  </Stack>
-                  <Typography variant="caption" color="rgba(255,255,255,0.6)">
-                    The model visualizes raw neuron activations as they ripple through the layers.
                   </Typography>
                 </Box>
               </Stack>
