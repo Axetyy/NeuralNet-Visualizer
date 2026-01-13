@@ -1,4 +1,4 @@
-export const API_BASE = 'https://neuralnet-visualizer.onrender.com'
+export const API_BASE = 'https://neuralnet-visualizer.onrender.com';
 
 import { ModelLayer } from '<@>/types';
 

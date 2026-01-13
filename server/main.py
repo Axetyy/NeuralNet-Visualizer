@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.optim as optim
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from model import DynamicModel,PretrainedModel
+from model import DynamicModel,PretrainedModel,FashionMNIST
 from torchvision import datasets,transforms
 
 from pydantic import BaseModel
@@ -24,6 +24,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+state_dict = torch.load(
+    'cnn_weights.pth',
+    map_location='cpu',
+    weights_only=True
+)
+
+cnn_model = FashionMNIST()
+incompatible = cnn_model.load_state_dict(state_dict)
+cnn_model.eval()
+
 
 state = {
     'model': None,
@@ -36,6 +46,7 @@ state = {
     'send_every':32,
     'ws_sleep':0.01,
 }
+viz_cache = {"layers":[]}
 
 
 def register_hooks(model):
@@ -77,6 +88,40 @@ def register_hooks(model):
         is_input = (idx == 0)
         layer.register_forward_hook(forward_hooks(layer_name, is_input))
         layer.register_full_backward_hook(backward_hooks(layer_name, is_input))
+
+
+hooks_registered = False
+
+def register_CNN_hooks(model):
+    global hooks_registered
+    if hooks_registered:
+        return
+    hooks_registered = True
+
+    def hook_fn(name):
+        def hook(module, input, output):
+            activations = output.detach().cpu()[0]
+            a_min = activations.min()
+            a_max = activations.max()
+
+            norm = (activations - a_min) / (a_max - a_min + 1e-6)
+
+            viz_cache['layers'].append({
+                'name': name,
+                'type': module.__class__.__name__,
+                'shape': list(activations.shape),
+                'values': norm.flatten().tolist(),
+                'stats': {
+                    'max_val': float(a_max),
+                    'channels': activations.shape[0],
+                    'resolution': activations.shape[1],
+                }
+            })
+        return hook
+
+    for name, module in model.named_modules():
+        if isinstance(module, (nn.Conv2d)):
+            module.register_forward_hook(hook_fn(name))
 
 class LayerConfig(BaseModel):
     type: str
@@ -198,6 +243,25 @@ async def draw_model(payload: List[float]):
         "forward_wave": [state['activations'].get(k, []) for k in layer_keys],
         "predicted": predicted,
     }
+    
+
+@app.post('/inference/cnn')
+async def inference_cnn(payload:List[float]):
+    cnn_model.eval()
+    register_CNN_hooks(cnn_model)
+    viz_cache['layers']= []
+    input_tensor = torch.tensor(payload).view(1,1,28,28)
+    with torch.no_grad():
+        logits = cnn_model(input_tensor)
+        probabilities = torch.softmax(logits,dim=1)
+        pred = torch.argmax(logits,dim=1).item()
+    return {
+        'prediction' : pred,
+        'confidence' : probabilities.cpu().numpy().tolist(),
+        'trace':viz_cache['layers']
+    }
+
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)

@@ -1,6 +1,33 @@
 import torch
 import torch.nn as nn
 
+
+class FashionMNIST(nn.Module):
+    def __init__(self):
+        super().__init__()
+        
+        self.conv1 = nn.Conv2d(1,16,kernel_size=3,padding=1)
+        self.relu1 = nn.ReLU()
+        self.pool1 = nn.MaxPool2d(2)
+        
+        self.conv2 = nn.Conv2d(16,32,kernel_size=3,padding=1)
+        self.relu2 = nn.ReLU()
+        self.pool2 = nn.MaxPool2d(2)
+        
+        self.conv3 = nn.Conv2d(32,64,kernel_size=3,padding=1)
+        self.relu3 = nn.ReLU()
+        
+        self.gap = nn.AdaptiveAvgPool2d((1,1))
+        self.fc = nn.Linear(64,10)
+    
+    def forward(self, x):
+        x = self.pool1(self.relu1(self.conv1(x)))
+        x = self.pool2(self.relu2(self.conv2(x)))
+        x = self.relu3(self.conv3(x))
+        x = self.gap(x)
+        x = torch.flatten(x, 1)
+        return self.fc(x)
+    
 class DynamicModel(nn.Module):
     def __init__(self, config):
         super().__init__()

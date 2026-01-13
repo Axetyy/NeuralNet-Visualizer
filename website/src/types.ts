@@ -12,3 +12,14 @@ export type ModelLayer = {
   out?: number;
 };
 export type GlowState = 'correct' | 'wrong' | null;
+export type CNNLayer = {
+  name: string;
+  type: string;
+  shape: number[];
+  values: number[];
+  stats: {
+    max_val: number;
+    channels: number;
+    resolution: number;
+  };
+};

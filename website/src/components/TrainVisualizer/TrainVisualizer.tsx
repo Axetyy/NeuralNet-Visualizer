@@ -43,8 +43,10 @@ const TrainVisualizer: React.FC<TrainVisualizerProps> = ({
   useEffect(() => {
     const connect = async () => {
       if (!isTraining || typeof window === 'undefined') return;
-
-      const ws = new WebSocket(`wss://neuralnet-visualizer.onrender.com/ws/train`);
+      const isLocal =
+        window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const url = isLocal ? 'ws://localhost:8000/ws/train' : `wss://${API_BASE}/ws/train`;
+      const ws = new WebSocket(url);
       wsRef.current = ws;
       setTrainingStopped(false);
       ws.onmessage = (event) => {
