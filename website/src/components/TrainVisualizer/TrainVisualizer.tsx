@@ -41,38 +41,47 @@ const TrainVisualizer: React.FC<TrainVisualizerProps> = ({
   const glowTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    const connect = async () => {
-      if (!isTraining || typeof window === 'undefined') return;
-      const isLocal =
-        window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      const url = isLocal ? 'ws://localhost:8000/ws/train' : `wss://${API_BASE}/ws/train`;
-      const ws = new WebSocket(url);
-      wsRef.current = ws;
-      setTrainingStopped(false);
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        setTrainingData({
-          forward: data.forward_wave ?? [],
-          backward: data.backward_wave ?? [],
-          loss: data.loss ?? 0,
-          predicted: data.predicted,
-          trueLabel: data.trueLabel,
-          accuracy: data.accuracy,
-        });
-      };
+  if (!isTraining || typeof window === 'undefined') return;
 
-      ws.onclose = () => {
-        setTrainingStopped(true);
-      };
+  const isLocal =
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1';
 
-      ws.onerror = () => {
-        setTrainingStopped(true);
-      };
+  const url = isLocal
+    ? 'ws://localhost:8000/ws/train'
+    : `${API_BASE.replace(/^http/, 'ws')}/ws/train`;
 
-      return () => ws.close();
-    };
-    connect();
-  }, [isTraining]);
+  const ws = new WebSocket(url);
+
+  wsRef.current = ws;
+  setTrainingStopped(false);
+
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+
+    setTrainingData({
+      forward: data.forward_wave ?? [],
+      backward: data.backward_wave ?? [],
+      loss: data.loss ?? 0,
+      predicted: data.predicted,
+      trueLabel: data.trueLabel,
+      accuracy: data.accuracy,
+    });
+  };
+
+  ws.onclose = () => {
+    setTrainingStopped(true);
+  };
+
+  ws.onerror = (err) => {
+    console.error('WebSocket error:', err);
+    setTrainingStopped(true);
+  };
+
+  return () => {
+    ws.close();
+  };
+}, [isTraining]);
   useEffect(() => {
     const glow = async () => {
       const { predicted, trueLabel } = trainingData;
